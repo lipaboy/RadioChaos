@@ -1,6 +1,4 @@
 **/.idea
-tracksless.txt
 example.py
-config.txt
 *.session*
 tracks.csv
