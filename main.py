@@ -75,7 +75,7 @@ async def getRandomTrack():
             await asyncio.sleep(1)
             trackMessage = await get_last_message()
 
-        print(trackMessage)
+        # print(trackMessage)
         # await app.edit_message_media(
         #     chat_id=trackMessage.chat.id,
         #     message_id=trackMessage.id,
@@ -88,8 +88,8 @@ async def getRandomTrack():
             title="Title", performer="Performer",
         )
         trackMessage = await get_last_message()
-        print(trackMessage)
-        # await downloadTrackFromMessage(trackMessage)
+        # print(trackMessage)
+        await downloadTrackFromMessage(trackMessage)
 
 
 async def progress(current, total):
