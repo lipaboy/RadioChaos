@@ -53,23 +53,28 @@ def playSongFromFile(filename, startPlaying: float = 0.0):
         time.sleep(1)
 
 
-async def playRandomTrack(fromBeginning: bool):
+async def playRandomTrack(isRadioStarts: bool):
     async with app:
         global _startMeasure
         print(time.time() - _startMeasure)
 
+        radioInitSound.play(loops=-1)
+
+        _startMeasure = time.time()
         while True:
             row = trackDB[random.randrange(len(trackDB))]
             tracksStr = row[0] + " " + row[1]
             # print(tracksStr)
 
-            _startMeasure = time.time()
             bot_results = await app.get_inline_bot_results(
                 "murglar_bot",
                 query=tracksStr
             )
 
-            if bot_results.results[0].content.attributes[0].duration >= 25:
+            if len(bot_results.results) <= 0 or \
+                    not hasattr(bot_results.results[0], "content"):
+                continue
+            elif bot_results.results[0].content.attributes[0].duration >= 25:
                 break
 
         await app.send_inline_bot_result(
@@ -81,42 +86,34 @@ async def playRandomTrack(fromBeginning: bool):
 
         _startMeasure = time.time()
         trackMessage = await get_last_message()
-        # print(trackMessage)
         while trackMessage.reply_markup is not None:
             await asyncio.sleep(1)
             trackMessage = await get_last_message()
         trackMessage = await get_last_message()
         print(time.time() - _startMeasure)
-        # print(trackMessage.audio)
 
         downloadTrackTask = asyncio.create_task(downloadTrackFromMessage(trackMessage))
         trackFile = await downloadTrackTask
         await app.delete_messages("me", trackMessage.id)
 
-        # playSongFromFile("radioInit.mp3", 6)
-        # playSongFromFile(
-        #     io.BytesIO(trackFile.getbuffer()),
-        #     0 if fromBeginning else random.randrange(0, trackMessage.audio.duration - 20))
+        songPositionPlaying = 0 if isRadioStarts \
+            else random.randrange(0, trackMessage.audio.duration - 20)
 
-        radioInitSound.play(maxtime=6000)
-        await asyncio.sleep(5)
         mixer.music.load(io.BytesIO(trackFile.getbuffer()))
-        # mixer.mu
-        mixer.music.play(start=0)
+        mixer.music.play(start=songPositionPlaying)
+
+        await asyncio.sleep(1)
+        radioInitSound.stop()
         while mixer.music.get_busy():  # wait for music to finish playing
             await asyncio.sleep(1)
-        # mixer.music.load(io.BytesIO(trackFile.getbuffer()))
-        # mixer.music.play(start=0)
-        # while mixer.music.get_busy():  # wait for music to finish playing
-        #     await asyncio.sleep(1)
 
         _startMeasure = time.time()
 
 
 async def appMain():
-    await playRandomTrack(False)
+    await playRandomTrack(isRadioStarts=True)
     while True:
-        await playRandomTrack(True)
+        await playRandomTrack(isRadioStarts=False)
 
 
 async def progress(current, total):
@@ -128,14 +125,3 @@ radioInitSound = mixer.Sound("radioInit.ogg")
 
 _startMeasure = time.time()
 app.run(appMain())
-# asyncio.run(main228())
-
-
-# contact_phone = '+79538571643'
-#
-# contacts = await app.get_contacts()
-# print(contacts)
-#
-# for contact in contacts:
-#     if contact.phone_number == contact_phone:
-#         await app.send_message(contact.username, 'text')
