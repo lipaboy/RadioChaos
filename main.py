@@ -96,7 +96,7 @@ async def playRandomTrack(isRadioStarts: bool):
         trackFile = await downloadTrackTask
         await app.delete_messages("me", trackMessage.id)
 
-        songPositionPlaying = 0 if isRadioStarts \
+        songPositionPlaying = 0 if not isRadioStarts \
             else random.randrange(0, trackMessage.audio.duration - 20)
 
         mixer.music.load(io.BytesIO(trackFile.getbuffer()))
