@@ -3,3 +3,4 @@ example.py
 *.session*
 tracks.csv
 *.mp3
+logs/
