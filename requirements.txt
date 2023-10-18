@@ -1,0 +1,4 @@
+Pyrogram~=2.0.106
+mutagen~=1.47.0
+pygame~=2.5.0
+openai~=0.28.0

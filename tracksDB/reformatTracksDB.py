@@ -15,7 +15,11 @@ attrs = ["artist", "artist_spotify_id", "name", "spotify_id",
          'danceability', 'energy', 'instrumentalness',
          'liveness', 'loudness', 'speechiness', 'valence', 'tempo']
 
-with open('tracksless.txt', mode="w", encoding='utf-8') as outFile:
+
+with open('tracksless.csv', mode="w", encoding='utf-8') as outFile:
+    file_writer = csv.DictWriter(outFile, delimiter=",", lineterminator="\n",
+                                 fieldnames=['artist', 'songLabel', 'releaseDate'])
+    file_writer.writeheader()
     for row in tracksDB:
         groupName = row[attrs.index('artist')].strip()
         songName = row[attrs.index('name')].strip()
@@ -24,10 +28,9 @@ with open('tracksless.txt', mode="w", encoding='utf-8') as outFile:
         if not dateStr.isdigit():
             dateStr = "None"
         if len(groupName) > 0 and len(songName) > 0:
-            lessData = groupName + "\n" \
-                       + songName + "\n" \
-                       + dateStr + "\n"
-            outFile.write(lessData)
+            file_writer.writerow({'artist': groupName,
+                                  'songLabel': songName,
+                                  'releaseDate': dateStr})
         else:
             print(groupName + " : " + songName)
     outFile.close()

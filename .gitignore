@@ -1,6 +1,5 @@
 **/.idea
-example.py
 *.session*
-tracks.csv
+**/tracks.csv
 *.mp3
 logs/
