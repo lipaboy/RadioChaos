@@ -1,5 +1,6 @@
 import asyncio
 import io
+import itertools
 import math
 import os.path
 import random
@@ -9,6 +10,7 @@ import time
 import json
 import sys
 import csv
+import timeit
 from pathlib import Path
 
 from pyrogram import Client
@@ -26,6 +28,7 @@ async def progress(current, total):
 
 class RadioChaos:
     def __init__(self):
+        mixer.pre_init(44100, -16, 2, 2048)
         mixer.init()
         self.initSound = mixer.Sound("sounds/radioInit.ogg")
         self.noiseSound = mixer.Sound("sounds/radiopomehi_2.ogg")
@@ -56,6 +59,10 @@ class RadioChaos:
             self.initSound.play(loops=-1)
 
             debugLastSong = True
+            withNoise = False
+            # todo: uncomment when release
+            debugLastSong = False
+            withNoise = True
             while True:
                 if not debugLastSong:
                     _startMeasure = time.time()
@@ -102,7 +109,6 @@ class RadioChaos:
                         # о незакаченном треке, поэтому его нужно удалить
                         await app.delete_messages("me", trackMessage.id)
 
-            # todo: uncomment when release
             self.initSound.stop()
 
             partTrack = bytes()
@@ -112,6 +118,8 @@ class RadioChaos:
             try:
                 i = 1
                 async for chunk in app.stream_media(trackMessage):
+                    if not debugLastSong and i == 1:
+                        await app.delete_messages("me", trackMessage.id)
                     partTrack += chunk
                     sizeOfChunks += len(chunk)
                     mainLogger.info(f'Loaded {i}\'s part')
@@ -136,38 +144,53 @@ class RadioChaos:
                         _startMeasure = time.time()
                         isStartPlaying = True
 
-                songVolume = mixer.music.get_volume()
-                musicPollTimeout = 0.5
-                NOISE_POLL_TIMEOUT = 0.1
-                SWITCH_TO_NEXT_PART = 1.5   # seconds before song part is over
-                NOISE_START = 4             # seconds before song part is over
-                volumeNoiseCoef = 1.0 / ((NOISE_START - SWITCH_TO_NEXT_PART) / NOISE_POLL_TIMEOUT)
-                volumeSongFadingCoef = volumeNoiseCoef / 1.3
-                while mixer.music.get_busy():  # wait for music to finish playing
-                    await asyncio.sleep(musicPollTimeout)
-                    pos = mixer.music.get_pos() / 1000
-                    print(pos)
-                    if firstSongPartLength - pos <= NOISE_START:
-                        if not mixer.Channel(0).get_busy():
-                            mixer.Channel(0).play(self.noiseSound, loops=-1)
-                            baseNoiseVolume = mixer.Channel(0).get_volume() / 1.5
-                            mixer.Channel(0).set_volume(volumeNoiseCoef * baseNoiseVolume)
-                            musicPollTimeout = NOISE_POLL_TIMEOUT
-                        else:
-                            mixer.Channel(0).set_volume(mixer.Channel(0).get_volume()
-                                                        + volumeNoiseCoef * baseNoiseVolume)
-                            mixer.music.set_volume(mixer.music.get_volume() - songVolume * volumeSongFadingCoef)
-                    if firstSongPartLength - pos < SWITCH_TO_NEXT_PART:
-                        break
+                mainLogger.info(f'Трек загрузился')
 
+                if isStartPlaying:
+                    songVolume = mixer.music.get_volume()
+                    musicPollTimeout = 0.25
+                    NOISE_POLL_TIMEOUT = 0.1
+                    SWITCH_TO_NEXT_PART = 1.5   # seconds before song part is over
+                    NOISE_START = random.uniform(2.3, 4.1)             # seconds before song part is over
+                    volumeNoiseCoef = \
+                        0 if not withNoise else random.uniform(0.8, 1.01) \
+                                                * 1.0 / ((NOISE_START - SWITCH_TO_NEXT_PART) / NOISE_POLL_TIMEOUT)
+                    volumeSongFadingCoef = volumeNoiseCoef / 1.3
+                    while mixer.music.get_busy():  # wait for music to finish playing
+                        await asyncio.sleep(musicPollTimeout)
+                        pos = mixer.music.get_pos() / 1000
+                        if debugLastSong:
+                            print(f'{pos:.1f}')
+                        if firstSongPartLength - pos <= NOISE_START:
+                            if not mixer.Channel(0).get_busy():
+                                mixer.Channel(0).play(self.noiseSound, loops=-1)
+                                # уменьшаем громкость помех
+                                baseNoiseVolume = mixer.Channel(0).get_volume() / 1.5
+                                mixer.Channel(0).set_volume(volumeNoiseCoef * baseNoiseVolume)
+                                musicPollTimeout = NOISE_POLL_TIMEOUT
+                            else:
+                                mixer.Channel(0).set_volume(mixer.Channel(0).get_volume()
+                                                            + volumeNoiseCoef * baseNoiseVolume)
+                                mixer.music.set_volume(mixer.music.get_volume() - songVolume * volumeSongFadingCoef)
+                        if firstSongPartLength - pos < SWITCH_TO_NEXT_PART:
+                            break
+
+                # load whole track and rewind to pos
+                currentPosition = mixer.music.get_pos()
+                currentPosition = 0 if currentPosition == -1 else currentPosition
+                mixer.music.stop()
+                st = timeit.default_timer()
                 mixer.music.load(io.BytesIO(partTrack))
-                mixer.music.play(start=mixer.music.get_pos()/1000)
+                # время загрузки трека не зависит от его размера: странно? ещё бы
+                # тогда откуда звук перехода?
+                mainLogger.info(f"load time: {(timeit.default_timer() - st) * 1e6:.0f} microsecs")
+                mixer.music.play(start=currentPosition/1000)
                 while mixer.music.get_busy():  # wait for music to finish playing
                     await asyncio.sleep(musicPollTimeout)
                     vol = mixer.Channel(0).get_volume()
                     songVol = mixer.music.get_volume()
                     if songVol >= songVolume:
-                        mixer.Channel(0).stop()
+                        mixer.Channel(0).stop()     # turn off the noise
                         musicPollTimeout = 1
                     else:
                         mixer.Channel(0).set_volume(vol - baseNoiseVolume * volumeNoiseCoef)
@@ -175,17 +198,9 @@ class RadioChaos:
             except Exception as ex:
                 print(ex)
 
-            # trackFile = await downloadTrackTask
-
-            # mainLogger.info(f'Трек загрузился')
-            # todo: uncomment when release
-            # await app.delete_messages("me", trackMessage.id)
-
+            # todo: come back this feature before release
             songPositionPlaying = 0 if not isRadioStarts \
                 else random.randrange(0, trackMessage.audio.duration - 20)
-
-            # mixer.music.load(io.BytesIO(trackFile.getbuffer()))
-            # mixer.music.play(start=songPositionPlaying)
 
             trackMinutes, trackSeconds = divmod(math.floor(time.time() - _startMeasure), 60)
             mainLogger.info(f'Трек играл: {trackMinutes}m {trackSeconds}s')
