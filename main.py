@@ -76,15 +76,22 @@ class RadioChaos:
                             query=tracksStr
                         )
 
-                        if len(bot_results.results) <= 0 or \
-                                not hasattr(bot_results.results[0], "content"):
+                        res = None
+                        for r in bot_results.results:
+                            if not "deezer" in r.description.lower():
+                                res = r
+                                break
+                        if not res:
                             continue
-                        elif bot_results.results[0].content.attributes[0].duration >= 25:
+                        if len(bot_results.results) <= 0 or \
+                                not hasattr(res, "content"):
+                            continue
+                        elif res.content.attributes[0].duration >= 25:
                             break
 
                     await app.send_inline_bot_result(
                         "me", bot_results.query_id,
-                        bot_results.results[0].id)
+                        res.id)
 
                     mainLogger.info(f'Время поиска трека: {time.time() - _startMeasure:.1f}s')
 
